@@ -10,5 +10,5 @@ Still in development so don't expect much :)
 ### TODO
 - Write agents
 - Finish the Server code
-- Implement Authorization support
+- Implement Authorization support (Done)
 - Make the code look better

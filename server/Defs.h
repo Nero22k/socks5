@@ -12,6 +12,9 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+#define USERNAME "Aquamen"
+#define PASSWORD "Password123"
+
 int SOCKS5port = 1080;
 
 typedef struct ServerThreadParams 

@@ -7,6 +7,7 @@
 #include "resource.h"
 
 BOOL isRunning = FALSE;
+HANDLE hStopEvent;
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow) 
 {
@@ -43,6 +44,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     if (hwnd == NULL) {
         MessageBoxW(NULL, L"Window Creation Failed!", L"Error!", MB_ICONERROR | MB_OK);
+        return 0;
+    }
+
+    hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (hStopEvent == NULL) {
+        MessageBoxW(NULL, L"Event creation failed!", L"Error!", MB_ICONERROR | MB_OK);
         return 0;
     }
 
@@ -95,6 +102,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
             if (isRunning)
             {
                 isRunning = FALSE;
+                SetEvent(hStopEvent);
                 MessageBoxW(NULL, L"Server stopped!", L"Info!", MB_ICONINFORMATION | MB_OK);
             }
             else
@@ -124,6 +132,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         break;
     case WM_DESTROY:
         free(pCustomData);
+        CloseHandle(hStopEvent);
         PostQuitMessage(0);
         break;
     default:
@@ -262,6 +271,10 @@ void createMenu(HWND hwnd)
 
 void startServerThread(HWND hwnd) 
 {
+
+    // Reset the hStopEvent before starting the server thread
+    ResetEvent(hStopEvent);
+
     HANDLE hThread = CreateThread(NULL, 0, serverThreadFunction, (LPVOID)hwnd, 0, NULL);
     if (hThread == NULL) 
     {
@@ -295,23 +308,70 @@ DWORD WINAPI clientThreadFunction(LPVOID lpParam)
     int numAuthMethods = buf[1];
     BOOL noAuthRequired = FALSE;
 
-    // Check if the "No authentication required" method (0x00) is in the list of supported methods
-    for (int i = 0; i < numAuthMethods; i++) {
-        if (buf[2 + i] == 0x00) {
-            noAuthRequired = TRUE;
+    // Check if the "Username/Password" method (0x02) is in the list of supported methods if not then falls back to the "No authentication required" method (0x00)
+    int selectedAuthMethod = -1;
+    for (int i = 0; i < numAuthMethods; i++) 
+    {
+        if (buf[2 + i] == 0x02) 
+        {
+            selectedAuthMethod = 0x02;
             break;
+        }
+        if (buf[2 + i] == 0x00 && selectedAuthMethod != 0x02) 
+        {
+            selectedAuthMethod = 0x00;
         }
     }
 
     // If the "No authentication required" method is not supported, close the connection
-    if (!noAuthRequired) {
+    if (selectedAuthMethod == -1) {
         closesocket(clientSocket);
         return 1;
     }
 
     // Send a response indicating the supported authentication method (no authentication required)
-    unsigned char response[2] = { 0x05, 0x00 };
+    unsigned char response[2] = { 0x05, selectedAuthMethod };
     send(clientSocket, response, 2, 0);
+
+    // Perform authentication if the "Username/Password" method was selected
+    if (selectedAuthMethod == 0x02) 
+    {
+        len = recv(clientSocket, buf, sizeof(buf), 0);
+        if (len <= 0) {
+            closesocket(clientSocket);
+            return 1;
+        }
+
+        // Check that the received data starts with the correct version (0x01)
+        if (buf[0] != 0x01) {
+            closesocket(clientSocket);
+            return 1;
+        }
+
+        // Extract the username and password
+        int usernameLen = buf[1];
+        char username[256];
+        memcpy(username, buf + 2, usernameLen);
+        username[usernameLen] = '\0';
+
+        int passwordLen = buf[2 + usernameLen];
+        char password[256];
+        memcpy(password, buf + 3 + usernameLen, passwordLen);
+        password[passwordLen] = '\0';
+
+        // Check if the provided username and password are valid (replace with your authentication logic)
+        BOOL isAuthenticated = (strcmp(username, USERNAME) == 0) && (strcmp(password, PASSWORD) == 0);
+
+        // Send a response indicating the authentication result (success: 0x00, failure: 0x01)
+        unsigned char authResponse[2] = { 0x01, isAuthenticated ? 0x00 : 0x01 };
+        send(clientSocket, authResponse, 2, 0);
+
+        // If authentication failed, close the connection
+        if (!isAuthenticated) {
+            closesocket(clientSocket);
+            return 1;
+        }
+    }
 
     // Receive the client's connection request
     len = recv(clientSocket, buf, 1024, 0);
@@ -475,51 +535,77 @@ DWORD WINAPI serverThreadFunction(LPVOID lpParam)
     struct sockaddr_in clientAddr;
     int clientAddrLen = sizeof(clientAddr);
     SOCKET clientSocket;
+    fd_set readfds;
+    struct timeval timeout;
+    int selectResult;
+
     while (isRunning)
     {
-        clientSocket = accept(listenSocket, (SOCKADDR*)&clientAddr, &clientAddrLen);
-        if (clientSocket == INVALID_SOCKET) {
-            MessageBoxPrintfW(NULL, L"Error", MB_ICONERROR | MB_OK, L"accept() failed with error code (%ld)", GetLastError());
-            closesocket(listenSocket);
-            WSACleanup();
-            return 1;
-        }
+        // Initialize the file descriptor set and timeout
+        FD_ZERO(&readfds);
+        FD_SET(listenSocket, &readfds);
+        timeout.tv_sec = 1; // 1 second timeout
+        timeout.tv_usec = 0;
 
-        if (isRunning)
+        selectResult = select((int)listenSocket + 1, &readfds, NULL, NULL, &timeout);
+
+        if (selectResult > 0) // A client is connecting
         {
-            // Create a separate thread for the connected client
-            HANDLE hClientThread = CreateThread(NULL, 0, clientThreadFunction, (LPVOID)clientSocket, 0, NULL);
-            if (hClientThread == NULL)
-            {
-                closesocket(clientSocket);
-                MessageBoxPrintfW(NULL, L"Error", MB_ICONEXCLAMATION | MB_OK, L"Client thread creation failed with error code (%ld)", GetLastError());
-            }
-            else
-            {
-                CloseHandle(hClientThread);
+            clientSocket = accept(listenSocket, (SOCKADDR*)&clientAddr, &clientAddrLen);
+            if (clientSocket == INVALID_SOCKET) {
+                MessageBoxPrintfW(NULL, L"Error", MB_ICONERROR | MB_OK, L"accept() failed with error code (%ld)", GetLastError());
+                closesocket(listenSocket);
+                WSACleanup();
+                return 1;
             }
 
-            char clientIP[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
+            if (isRunning)
+            {
+                // Create a separate thread for the connected client
+                HANDLE hClientThread = CreateThread(NULL, 0, clientThreadFunction, (LPVOID)clientSocket, 0, NULL);
+                if (hClientThread == NULL)
+                {
+                    closesocket(clientSocket);
+                    MessageBoxPrintfW(NULL, L"Error", MB_ICONEXCLAMATION | MB_OK, L"Client thread creation failed with error code (%ld)", GetLastError());
+                }
+                else
+                {
+                    CloseHandle(hClientThread);
+                }
 
-            int clientPort = ntohs(clientAddr.sin_port);
+                char clientIP[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
 
-            HWND hwnd = (HWND)lpParam;
+                int clientPort = ntohs(clientAddr.sin_port);
 
-            char combinedInfo[INET_ADDRSTRLEN + 10]; // 10 extra characters for the port and separator
-            sprintf_s(combinedInfo, INET_ADDRSTRLEN + 10, "%s:%d", clientIP, clientPort);
+                HWND hwnd = (HWND)lpParam;
 
-            // Convert the combined string to a wide string
-            WCHAR* wCombinedInfo = (WCHAR*)malloc((INET_ADDRSTRLEN + 10) * sizeof(WCHAR));
-            swprintf(wCombinedInfo, INET_ADDRSTRLEN + 10, L"%hs", combinedInfo);
-            // Send a message to the main thread to create the ListView and insert data
-            PostMessageW(hwnd, WM_APP + 1, (WPARAM)clientSocket, (LPARAM)wCombinedInfo);
+                char combinedInfo[INET_ADDRSTRLEN + 10]; // 10 extra characters for the port and separator
+                sprintf_s(combinedInfo, INET_ADDRSTRLEN + 10, "%s:%d", clientIP, clientPort);
+
+                // Convert the combined string to a wide string
+                WCHAR* wCombinedInfo = (WCHAR*)malloc((INET_ADDRSTRLEN + 10) * sizeof(WCHAR));
+                swprintf(wCombinedInfo, INET_ADDRSTRLEN + 10, L"%hs", combinedInfo);
+                // Send a message to the main thread to create the ListView and insert data
+                PostMessageW(hwnd, WM_APP + 1, (WPARAM)clientSocket, (LPARAM)wCombinedInfo);
+            }
+        }
+        else if (selectResult < 0) // An error occurred
+        {
+            MessageBoxPrintfW(NULL, L"Error", MB_ICONERROR | MB_OK, L"select() failed with error code (%ld)", GetLastError());
+            isRunning = FALSE;
+        }
+        else // Timeout occurred, check if the stop event is signaled
+        {
+            if (WaitForSingleObject(hStopEvent, 0) != WAIT_TIMEOUT)
+            {
+                isRunning = FALSE;
+            }
         }
     }
 
     // Close client and server sockets
     closesocket(listenSocket);
-    closesocket(clientSocket);
     WSACleanup();
     return 0;
 }

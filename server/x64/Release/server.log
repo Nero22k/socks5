@@ -1,15 +1,10 @@
 ﻿  main.c
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(52,108): warning C4244: '=': conversion from 'INT_PTR' to 'int', possible loss of data
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(66,22): warning C4244: 'return': conversion from 'WPARAM' to 'int', possible loss of data
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(203,28): warning C4477: 'swprintf' : format string '%d' requires an argument of type 'int', but variadic argument 1 has type 'WPARAM'
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(203,28): message : consider using '%lld' in the format string
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(203,28): message : consider using '%Id' in the format string
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(203,28): message : consider using '%I64d' in the format string
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(392,76): warning C4244: '=': conversion from 'SOCKET' to 'int', possible loss of data
-P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(577,115): warning C4244: 'return': conversion from 'INT_PTR' to 'int', possible loss of data
-  Generating code
-  1 of 18 functions ( 5.6%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    0 functions had inline decision re-evaluated but remain unchanged
-  Finished generating code
+P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(59,108): warning C4244: '=': conversion from 'INT_PTR' to 'int', possible loss of data
+P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(73,22): warning C4244: 'return': conversion from 'WPARAM' to 'int', possible loss of data
+P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(212,28): warning C4477: 'swprintf' : format string '%d' requires an argument of type 'int', but variadic argument 1 has type 'WPARAM'
+P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(212,28): message : consider using '%lld' in the format string
+P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(212,28): message : consider using '%Id' in the format string
+P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(212,28): message : consider using '%I64d' in the format string
+P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\server\main.c(452,76): warning C4244: '=': conversion from 'SOCKET' to 'int', possible loss of data
+  LINK : /LTCG specified but no code generation required; remove /LTCG from the link command line to improve linker performance
   server.vcxproj -> P:\Simple_C_Mal\C_Mal_dev\SOCKS5_ReverseProxy\x64\Release\server.exe
